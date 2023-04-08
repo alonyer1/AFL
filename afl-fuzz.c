@@ -66,6 +66,8 @@
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <sys/file.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 
 #if defined(__APPLE__) || defined(__FreeBSD__) || defined (__OpenBSD__)
 #  include <sys/sysctl.h>
@@ -100,6 +102,8 @@ EXP_ST u8 *in_dir,                    /* Input directory with test cases  */
           *in_bitmap,                 /* Input bitmap                     */
           *doc_path,                  /* Path to documentation dir        */
           *target_path,               /* Path to target binary            */
+		      *port_num,
+		      *ip_address,
           *orig_cmdline;              /* Original command line            */
 
 EXP_ST u32 exec_tmout = EXEC_TIMEOUT; /* Configurable exec timeout (ms)   */
@@ -136,6 +140,7 @@ EXP_ST u8  skip_deterministic,        /* Skip deterministic stages?       */
            run_over10m,               /* Run time over 10 minutes?        */
            persistent_mode,           /* Running in persistent mode?      */
            deferred_mode,             /* Deferred forkserver mode?        */
+		       oracle_mode,				  /* Run in Oracle mode?			  */
            fast_cal;                  /* Try to calibrate faster?         */
 
 static s32 out_fd,                    /* Persistent fd for out_file       */
@@ -261,6 +266,7 @@ struct queue_entry {
 
   u8* trace_mini;                     /* Trace bytes, if kept             */
   u32 tc_ref;                         /* Trace bytes ref count            */
+  u64* timing_list;                   /* Time between reactions           */
 
   struct queue_entry *next,           /* Next element, if any             */
                      *next_100;       /* 100 elements ahead               */
@@ -294,6 +300,9 @@ static u8* (*post_handler)(u8* buf, u32* len);
 static s8  interesting_8[]  = { INTERESTING_8 };
 static s16 interesting_16[] = { INTERESTING_8, INTERESTING_16 };
 static s32 interesting_32[] = { INTERESTING_8, INTERESTING_16, INTERESTING_32 };
+
+/* Oracle mode */
+static u32 sock_fd;
 
 /* Fuzzing stages */
 
@@ -335,6 +344,7 @@ enum {
   /* 04 */ FAULT_NOINST,
   /* 05 */ FAULT_NOBITS
 };
+
 
 
 /* Get unix time in milliseconds */
@@ -2283,10 +2293,34 @@ EXP_ST void init_forkserver(char** argv) {
 
 }
 
+static u8 run_socket(char** argv, u32 timeout, u64* out_buf, u32 len) {
+  //TODO: timeout. Use constants.
+  int num_reactions;
+  u64 response;
+  char sock_buf[4];
+  u64* react_times;
+  u64 reaction_len;
+  u64 cur=0;
+  int res;
+  /* Send a message over the buffer to start. */
+  sprintf(sock_buf, "%d", len);
+  res = send(sock_fd, sock_buf, 4, 0);
+  if(res==-1) RPFATAL(res, "Unable to write to oracle server.\n");
+  int bytes_left = len;
+  int bytes_sent = 0;
+  while(bytes_left>0) {
+    bytes_sent = send(sock_fd, out_buf, bytes_left, 0);
+    if(bytes_sent==-1) RPFATAL(bytes_sent, "Unable to write to oracle server.\n");
+    bytes_left -= bytes_sent;
+  }
+  /* Receive a message back. Allocate in a buffer. */
+
+  
+}
 
 /* Execute target application, monitoring for timeouts. Return status
    information. The called program will update trace_bits[]. */
-
+//!!!
 static u8 run_target(char** argv, u32 timeout) {
 
   static struct itimerval it;
@@ -7795,7 +7829,7 @@ int main(int argc, char** argv) {
   gettimeofday(&tv, &tz);
   srandom(tv.tv_sec ^ tv.tv_usec ^ getpid());
 
-  while ((opt = getopt(argc, argv, "+i:o:f:m:b:t:T:dnCB:S:M:x:QV")) > 0)
+  while ((opt = getopt(argc, argv, "+i:o:O:f:m:b:t:T:dnCB:S:M:x:QV")) > 0)
 
     switch (opt) {
 
@@ -7960,6 +7994,15 @@ int main(int argc, char** argv) {
 
         break;
 
+	    case 'O': /* Oracle mode */
+        oracle_mode = 1;
+        ip_address = optarg;
+        break;
+		
+	    case 'p':
+        if(!oracle_mode) FATAL("-p only available in Oracle Mode.");
+        port_num = optarg;
+        break;
       case 'T': /* banner */
 
         if (use_banner) FATAL("Multiple -T options not supported");
@@ -7987,7 +8030,17 @@ int main(int argc, char** argv) {
     }
 
   if (optind == argc || !in_dir || !out_dir) usage(argv[0]);
-
+  /* Oracle mode, create the new socket. */
+  if(oracle_mode){
+    if(qemu_mode) FATAL("-O and -Q are mutually exclusive.");
+    sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+    struct sockaddr_in* target_address = ck_alloc(sizeof(struct sockaddr_in));
+    target_address->sin_family = AF_INET;
+    target_address->sin_port = atoi(port_num);
+    inet_aton(ip_address, target_address->sin_addr.s_addr);
+    connect(sock_fd, (struct sockaddr*)target_address, sizeof(target_address));
+    ck_free(target_address);
+  }
   setup_signal_handlers();
   check_asan_opts();
 
@@ -8072,7 +8125,7 @@ int main(int argc, char** argv) {
   cull_queue();
 
   show_init_stats();
-
+//!!
   seek_to = find_start_position();
 
   write_stats_file(0, 0, 0);
@@ -8081,13 +8134,13 @@ int main(int argc, char** argv) {
   if (stop_soon) goto stop_fuzzing;
 
   /* Woop woop woop */
-
+//??
   if (!not_on_tty) {
     sleep(4);
     start_time += 4000;
     if (stop_soon) goto stop_fuzzing;
   }
-
+//!!
   while (1) {
 
     u8 skipped_fuzz;
@@ -8185,7 +8238,7 @@ stop_fuzzing:
   destroy_extras();
   ck_free(target_path);
   ck_free(sync_id);
-
+  close(sock_fd);
   alloc_report();
 
   OKF("We're done here. Have a nice day!\n");
