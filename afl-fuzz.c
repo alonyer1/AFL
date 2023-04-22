@@ -140,7 +140,7 @@ EXP_ST u8  skip_deterministic,        /* Skip deterministic stages?       */
            run_over10m,               /* Run time over 10 minutes?        */
            persistent_mode,           /* Running in persistent mode?      */
            deferred_mode,             /* Deferred forkserver mode?        */
-		       oracle_mode,				  /* Run in Oracle mode?			  */
+		       oracle_mode,				        /* Run in Oracle mode?			  */
            fast_cal;                  /* Try to calibrate faster?         */
 
 static s32 out_fd,                    /* Persistent fd for out_file       */
@@ -302,7 +302,7 @@ static s16 interesting_16[] = { INTERESTING_8, INTERESTING_16 };
 static s32 interesting_32[] = { INTERESTING_8, INTERESTING_16, INTERESTING_32 };
 
 /* Oracle mode */
-static u32 sock_fd;
+static int sock_fd;
 
 /* Fuzzing stages */
 
@@ -858,6 +858,7 @@ EXP_ST void destroy_queue(void) {
     n = q->next;
     ck_free(q->fname);
     ck_free(q->trace_mini);
+    ck_free(q->timing_list);
     ck_free(q);
     q = n;
 
@@ -2292,30 +2293,49 @@ EXP_ST void init_forkserver(char** argv) {
   FATAL("Fork server handshake failed");
 
 }
-
+/* Harness for Oracle mode.
+  Test case and its length is sent through the socket. In return we 
+  receive a list of timings.  */
 static u8 run_socket(char** argv, u32 timeout, u64* out_buf, u32 len) {
   //TODO: timeout. Use constants.
   int num_reactions;
   u64 response;
-  char sock_buf[4];
   u64* react_times;
   u64 reaction_len;
   u64 cur=0;
   int res;
   /* Send a message over the buffer to start. */
-  sprintf(sock_buf, "%d", len);
-  res = send(sock_fd, sock_buf, 4, 0);
+  res = send(sock_fd, &len, 4, 0);
   if(res==-1) RPFATAL(res, "Unable to write to oracle server.\n");
-  int bytes_left = len;
   int bytes_sent = 0;
-  while(bytes_left>0) {
-    bytes_sent = send(sock_fd, out_buf, bytes_left, 0);
+  while(cur<len) {
+    bytes_sent = send(sock_fd, out_buf+cur, len-cur, 0);
     if(bytes_sent==-1) RPFATAL(bytes_sent, "Unable to write to oracle server.\n");
-    bytes_left -= bytes_sent;
+    cur+=bytes_sent;
   }
   /* Receive a message back. Allocate in a buffer. */
-
-  
+  int bytes_received = recv(sock_fd, &reaction_len, 8, 0);
+  printf("%d\n", bytes_received);
+  if(bytes_received<0) RPFATAL(bytes_sent, "Unable to read from oracle server.\n");
+  printf("%d\n", reaction_len/8);
+  u8 ret_val = reaction_len & 0xff;
+  reaction_len = (reaction_len >> 8);
+  printf("%d\n", reaction_len);
+  char* buffer = (char*) ck_alloc(reaction_len);
+  cur=0;
+  while(cur < reaction_len) {
+    bytes_received = recv(sock_fd, buffer+cur, reaction_len-cur, 0);
+    printf("%d\n", bytes_received);
+    if(bytes_received!=-1) cur += bytes_received;
+  }
+  react_times = (u64*) buffer;
+/* DEBUG */
+  for(int i=0; i< reaction_len/8; i++) {
+    printf("%d\n", react_times[i]);
+  }
+  return ret_val;
+/* END DEBUG */
+  //queue_top->timing_list = react_times;
 }
 
 /* Execute target application, monitoring for timeouts. Return status
@@ -2666,7 +2686,8 @@ static u8 calibrate_case(char** argv, struct queue_entry* q, u8* use_mem,
     }
 
     cksum = hash32(trace_bits, MAP_SIZE, HASH_CONST);
-
+/*!! Checking if the path is new using a hash function - checksum.
+ also using "has_new_bits" */
     if (q->exec_cksum != cksum) {
 
       hnb = has_new_bits(virgin_bits);
@@ -2677,7 +2698,7 @@ static u8 calibrate_case(char** argv, struct queue_entry* q, u8* use_mem,
         u32 i;
 
         for (i = 0; i < MAP_SIZE; i++) {
-
+/*!! Checking if the trace path is new */
           if (!var_bytes[i] && first_trace[i] != trace_bits[i]) {
 
             var_bytes[i] = 1;
@@ -7158,10 +7179,12 @@ static void usage(u8* argv0) {
        "  -f file       - location read by the fuzzed program (stdin)\n"
        "  -t msec       - timeout for each run (auto-scaled, 50-%u ms)\n"
        "  -m megs       - memory limit for child process (%u MB)\n"
+       "  -O IP number  - use side-channel instrumentation (Oracle mode)\n"
        "  -Q            - use binary-only instrumentation (QEMU mode)\n\n"     
  
        "Fuzzing behavior settings:\n\n"
 
+       "  -p port       - port number for Oracle mode."
        "  -d            - quick & dirty mode (skips deterministic steps)\n"
        "  -n            - fuzz without instrumentation (dumb mode)\n"
        "  -x dir        - optional fuzzer dictionary (see README)\n\n"
@@ -7363,7 +7386,8 @@ static void check_crash_handling(void) {
   if (fd < 0) return;
 
   ACTF("Checking core_pattern...");
-
+//!! Uncomment below.
+/*
   if (read(fd, &fchar, 1) == 1 && fchar == '|') {
 
     SAYF("\n" cLRD "[-] " cRST
@@ -7381,7 +7405,7 @@ static void check_crash_handling(void) {
       FATAL("Pipe at the beginning of 'core_pattern'");
 
   }
- 
+ */
   close(fd);
 
 #endif /* ^__APPLE__ */
@@ -7392,7 +7416,9 @@ static void check_crash_handling(void) {
 /* Check CPU governor. */
 
 static void check_cpu_governor(void) {
-
+  /* DEBUG */
+  return;
+  /* END DEBUG*/
   FILE* f;
   u8 tmp[128];
   u64 min = 0, max = 0;
@@ -7425,7 +7451,6 @@ static void check_cpu_governor(void) {
   }
 
   if (min == max) return;
-
   SAYF("\n" cLRD "[-] " cRST
        "Whoops, your system uses on-demand CPU frequency scaling, adjusted\n"
        "    between %llu and %llu MHz. Unfortunately, the scaling algorithm in the\n"
@@ -7439,10 +7464,9 @@ static void check_cpu_governor(void) {
        "    'ondemand'. If you don't want to change the settings, set AFL_SKIP_CPUFREQ\n"
        "    to make afl-fuzz skip this check - but expect some performance drop.\n",
        min / 1024, max / 1024);
-
-  FATAL("Suboptimal CPU scaling governor");
-
-}
+ 
+  FATAL("Suboptimal CPU scalinggovernor");
+} 
 
 
 /* Count the number of logical CPU cores. */
@@ -7829,7 +7853,7 @@ int main(int argc, char** argv) {
   gettimeofday(&tv, &tz);
   srandom(tv.tv_sec ^ tv.tv_usec ^ getpid());
 
-  while ((opt = getopt(argc, argv, "+i:o:O:f:m:b:t:T:dnCB:S:M:x:QV")) > 0)
+  while ((opt = getopt(argc, argv, "+i:o:O:p:f:m:b:t:T:dnCB:S:M:x:QV")) > 0)
 
     switch (opt) {
 
@@ -7994,15 +8018,19 @@ int main(int argc, char** argv) {
 
         break;
 
-	    case 'O': /* Oracle mode */
+	    case 'O': /* oracle mode. Followed by IP address. */
+        /* DEBUG */
+        printf("test0");
+        /* END DEBUG */
         oracle_mode = 1;
         ip_address = optarg;
         break;
 		
-	    case 'p':
+	    case 'p' /* Port number for Oracle mode. */:
         if(!oracle_mode) FATAL("-p only available in Oracle Mode.");
         port_num = optarg;
         break;
+      
       case 'T': /* banner */
 
         if (use_banner) FATAL("Multiple -T options not supported");
@@ -8028,18 +8056,25 @@ int main(int argc, char** argv) {
         usage(argv[0]);
 
     }
-
+  /* DEBUG */
+  printf("test1\n");
+  /* END DEBUG */
   if (optind == argc || !in_dir || !out_dir) usage(argv[0]);
   /* Oracle mode, create the new socket. */
-  if(oracle_mode){
+  if(oracle_mode) {
     if(qemu_mode) FATAL("-O and -Q are mutually exclusive.");
     sock_fd = socket(AF_INET, SOCK_STREAM, 0);
-    struct sockaddr_in* target_address = ck_alloc(sizeof(struct sockaddr_in));
+    struct sockaddr_in* target_address = (struct sockaddr_in*) ck_alloc(sizeof(struct sockaddr_in));
     target_address->sin_family = AF_INET;
-    target_address->sin_port = atoi(port_num);
-    inet_aton(ip_address, target_address->sin_addr.s_addr);
-    connect(sock_fd, (struct sockaddr*)target_address, sizeof(target_address));
+    target_address->sin_port = htons(atoi(port_num));
+    inet_aton(ip_address, &target_address->sin_addr);
+    connect(sock_fd, (struct sockaddr*)target_address, sizeof(*target_address));
+/* DEBUG */
+    char * temp_buffer = "abcdefghijklmnop";
+    run_socket(argv, 0, temp_buffer, 16);
+    close(sock_fd);
     ck_free(target_address);
+    return;
   }
   setup_signal_handlers();
   check_asan_opts();
@@ -8248,3 +8283,4 @@ stop_fuzzing:
 }
 
 #endif /* !AFL_LIB */
+
