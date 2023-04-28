@@ -24,13 +24,13 @@ u64 measure_instance(code_ptr code) {
     File must be compiled as position-indepentent executable to be loaded into memory.
     */
 
-    asm volatile ("CPUID\n\t" "RDTSC\n\t" "CPUID\n\t" "mov %%rdx, %0\n\t"
-                "mov %%rax, %1\n\t":
-                "=r" (cycles_high), "=r" (cycles_low):: "%rax", "%rdx", "%rbx", "%rcx");
+    asm volatile ("CPUID\n\t" "RDTSC\n\t" "CPUID\n\t" "mov %0, %%rdx\n\t"
+                "mov %1, %%rax\n\t":
+                "=rdx" (cycles_high), "=r" (cycles_low):: "%rax", "%rdx", "%rbx", "%rcx");
     //code();
     printf("code\n");
-    asm volatile ("CPUID\n\t" "RDTSC\n\t" "CPUID\n\t" "mov %%rdx, %0\n\t"
-                "mov %%rax, %1\n\t":
+    asm volatile ("CPUID\n\t" "RDTSC\n\t" "CPUID\n\t" "mov %0, %%rdx\n\t"
+                "mov %1, %%rax\n\t":
                 "=r" (cycles_high1), "=r" (cycles_low1):: "%rax", "%rdx", "%rbx", "%rcx");
     u64 start = (cycles_high << 32) + cycles_low;
     u64 end = (cycles_high1 << 32) + cycles_low1;

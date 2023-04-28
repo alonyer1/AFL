@@ -1,0 +1,12 @@
+{
+    "files.associations": {
+        "features.h": "c",
+        "mman.h": "c",
+        "types.h": "c",
+        "stddef.h": "c",
+        "compare": "c",
+        "oracle-run.h": "c",
+        "sched.h": "c",
+        "time_t.h": "c"
+    }
+}
