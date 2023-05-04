@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define DO_SYS( call, error ) if((call)==-1) { perror(error); exit(-1); }
+
 int main(int argc, const char** argv) {
   //TODO: timeout. Use constants.
   struct sockaddr_in* local_address = (struct sockaddr_in *) malloc(sizeof(struct sockaddr_in));
