@@ -3,7 +3,7 @@
 
 #ifdef RUN_CODE
 #include "user-code-test.h"
-#define USER_FUNCTION test_function
+#define USER_FUNCTION func("abc")
 #endif
 
 #include "oracle-run.h"
@@ -44,8 +44,7 @@ static inline uint64_t measure_instance2() {
     uint32_t cycles_low=0, cycles_high=0, cycles_low1=0, cycles_high1=0;
     MEASURE_START(cycles_low, cycles_high);
 #ifdef RUN_CODE
-    //USER_FUNCTION();
-    printf("idk\n");
+    USER_FUNCTION;
 #endif
     MEASURE_END(cycles_low1, cycles_high1);
     uint64_t start = JOIN64(cycles_high, cycles_low);
@@ -70,12 +69,8 @@ void measure_loop(const char* output_path, int loop_n) {
 }
 
 int main(int argc, const char** argv) {
-    uint64_t time = measure_instance2();
-    printf("Measurement: %lx\n", time);
-    uint64_t logop=127, logres=0;
-    LOG_2(logop, logres);
-    printf("Log2 of %lu is %lu.\n", logop, logres);
-
+    if(argc!=2) printf("Correct usage: ./oracle <output-file> <iteration-count>\n");
+    else measure_loop(argv[1], atoi(argv[2]));
 }
 
 /* DRAFT:
