@@ -1,0 +1,4 @@
+# ghz=3.798538
+tsc granularity: 5.607463
+clk granularity: 1014.762840
+sys granularity: 4.372980
