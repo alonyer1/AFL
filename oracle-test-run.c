@@ -3,9 +3,9 @@
 
 #ifdef RUN_CODE
 #include "user-code-test.h"
-#define USER_FUNCTION func("abc")
+#define USER_FUNCTION func("abcdefg")
 #endif
-
+#include <stdbool.h>
 #include "oracle-run.h"
 #include <unistd.h>
 #include <sched.h>
@@ -39,25 +39,32 @@ static inline void set_core(int core_num) {
     DO_SYS(sched_setaffinity(0, sizeof(core_mask), &core_mask), ERR_AFFINITY)
 }
 
-/* Measure code once.*/
-static inline uint64_t measure_instance2() {
+/* Measure once. If argument is true, measure a function provided by macro.*/
+static inline uint64_t measure_instance2(bool with_code) {
     uint32_t cycles_low=0, cycles_high=0, cycles_low1=0, cycles_high1=0;
-    MEASURE_START(cycles_low, cycles_high);
-#ifdef RUN_CODE
-    USER_FUNCTION;
-#endif
-    MEASURE_END(cycles_low1, cycles_high1);
+    if(with_code) {
+        MEASURE_START(cycles_low, cycles_high);
+        USER_FUNCTION;
+        MEASURE_END(cycles_low1, cycles_high1);
+    } else {
+        MEASURE_START(cycles_low, cycles_high);
+        MEASURE_END(cycles_low1, cycles_high1);
+    }
     uint64_t start = JOIN64(cycles_high, cycles_low);
     uint64_t end = JOIN64(cycles_high1, cycles_low1);
     return end-start;
 }
 
+
 void measure_loop(const char* output_path, int loop_n) {
     set_core(ISOLATED_CORE);
     long unsigned int histogram[REG_SIZE] = {0};
-    uint64_t log_result=0;
+    uint64_t log_result=0,time_measured=0;
     for(int i=0; i < loop_n; i++) {
-        LOG_2(measure_instance2, log_result);
+        time_measured = measure_instance2(true);
+        time_measured -= measure_instance2(false);
+        printf("%lx\n", time_measured);
+        LOG_2(time_measured, log_result);
         histogram[log_result]++;
     }
     FILE * out_file;
@@ -69,7 +76,7 @@ void measure_loop(const char* output_path, int loop_n) {
 }
 
 int main(int argc, const char** argv) {
-    if(argc!=2) printf("Correct usage: ./oracle <output-file> <iteration-count>\n");
+    if(argc!=3) printf("Correct usage: ./oracle <output-file> <iteration-count>\n");
     else measure_loop(argv[1], atoi(argv[2]));
 }
 
