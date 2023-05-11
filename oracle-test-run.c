@@ -19,16 +19,24 @@ typedef unsigned int uint32_t;
 #define REG_SIZE 64
 
 /* Efficient functions to use in measuring at the beginning and end. */
-#define MEASURE_START( cycles_low, cycles_high ) asm volatile ("CPUID\n\t" "RDTSC\n\t" "mov %%edx, %0\n\t" "mov %%eax, %1\n\t" :\
-        "=r"(cycles_high), "=r" (cycles_low):: "%rax", "%rdx", "%rbx", "%rcx", "memory")
+static inline uint64_t measure_start() {
+    uint32_t cycles_low=0, cycles_high=0;
+    asm volatile ("CPUID\n\t" "RDTSC\n\t" : "=a" (cycles_low), "=d"(cycles_high):: "%rbx", "memory");
+    return (((uint64_t)cycles_high << 32) | cycles_low);
+}
 
-#define MEASURE_END( cycles_low, cycles_high ) asm volatile ("RDTSCP\n\t" "mov %%edx, %0\n\t" "mov %%eax, %1\n\t" "CPUID\n\t" :\
-        "=r" (cycles_high), "=r" (cycles_low):: "%rax", "%rdx", "%rbx", "%rcx", "memory")
-
-/* Combine a variable containing lower 32 bits and higher 32 bits. */
-#define JOIN64( high, low ) (((uint64_t)high << 32) | low)
+static inline uint64_t measure_end() {
+    uint32_t cycles_low=0, cycles_high=0, aux=0;
+    asm volatile ("RDTSCP\n\t" : "=a" (cycles_low), "=d"(cycles_high), "=c"(aux):: "%rbx", "memory");
+    return (((uint64_t)cycles_high << 32) | cycles_low);
+}
 
 /* Measure floor of log_2 efficiently. */
+static inline uint64_t log_2(uint64_t var) {
+    uint64_t res = 0;
+    asm ("BSRQ %1, %0" : "=r"(res) : "r"(var));
+    return res;
+}
 #define LOG_2( var, res ) asm ("BSRQ %1, %0" : "=r"(res) : "r"(var) : "memory")
 
 /* Move process to isolated core. */
@@ -41,17 +49,16 @@ static inline void set_core(int core_num) {
 
 /* Measure once. If argument is true, measure a function provided by macro.*/
 static inline uint64_t measure_instance2(bool with_code) {
-    uint32_t cycles_low=0, cycles_high=0, cycles_low1=0, cycles_high1=0;
+    uint64_t start=0, end=0;
     if(with_code) {
-        MEASURE_START(cycles_low, cycles_high);
+        start = measure_start();
         USER_FUNCTION;
-        MEASURE_END(cycles_low1, cycles_high1);
+        end = measure_end();
     } else {
-        MEASURE_START(cycles_low, cycles_high);
-        MEASURE_END(cycles_low1, cycles_high1);
+        start = measure_start();
+        end = measure_end();
     }
-    uint64_t start = JOIN64(cycles_high, cycles_low);
-    uint64_t end = JOIN64(cycles_high1, cycles_low1);
+    //printf("Start:%lx\nEnd:%lx\n", start,end);
     return end-start;
 }
 
@@ -60,15 +67,17 @@ void measure_loop(const char* output_path, int loop_n) {
     set_core(ISOLATED_CORE);
     long unsigned int histogram[REG_SIZE] = {0};
     uint64_t log_result=0,time_measured=0;
+    uint64_t measurement_cycles = measure_instance2(false);
     for(int i=0; i < loop_n; i++) {
         time_measured = measure_instance2(true);
-        time_measured -= measure_instance2(false);
         printf("%lx\n", time_measured);
-        LOG_2(time_measured, log_result);
+        time_measured -= measurement_cycles;
+        log_result = log_2(time_measured);
         histogram[log_result]++;
     }
     FILE * out_file;
     DO_SYS2(out_file, NULL, fopen(output_path, "w"), "Error: cannot open file.");
+    fprintf(out_file, "Measurement without code: %lu\n", measurement_cycles);
     for (int i = 0; i < REG_SIZE; i++) {
         fprintf(out_file, "%d: %lu\n", i, histogram[i]);
     }
