@@ -1,0 +1,50 @@
+# This is a Makefile for compiling a C program. 
+# The name of the executable file. 
+
+TARGET = oracle
+
+# The source files. 
+
+SOURCES = oracle-test-run.c bpb-override-loop.c
+
+ 
+
+# The object files. 
+
+OBJECTS = $(patsubst %.c, %.o, $(SOURCES)) 
+
+ 
+
+# The compiler and flags. 
+
+CC = gcc 
+
+CFLAGS = -Werror
+
+ 
+
+# The rule for building the executable file. 
+
+$(TARGET): $(OBJECTS) 
+
+$(CC) $(CFLAGS) -o $@ $^ 
+
+ 
+
+# The rule for building the object files. 
+
+%.o: %.c 
+
+$(CC) $(CFLAGS) -c -o $@ $<
+
+ 
+
+# The rule for cleaning up the build artifacts. 
+
+clean: 
+
+rm -f $(TARGET) $(OBJECTS) 
+
+ 
+
+.PHONY: all clean 

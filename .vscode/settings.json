@@ -7,6 +7,23 @@
         "compare": "c",
         "oracle-run.h": "c",
         "sched.h": "c",
-        "time_t.h": "c"
+        "time_t.h": "c",
+        "msr.h": "c",
+        "array": "c",
+        "bitset": "c",
+        "string_view": "c",
+        "initializer_list": "c",
+        "ioctl.h": "c",
+        "functional": "cpp",
+        "tuple": "cpp",
+        "type_traits": "cpp",
+        "utility": "cpp",
+        "cstdlib": "cpp",
+        "algorithm": "cpp",
+        "unistd.h": "c",
+        "*.tcc": "c",
+        "limits": "c",
+        "numeric": "c",
+        "streambuf": "c"
     }
 }

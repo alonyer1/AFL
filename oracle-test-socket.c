@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define DO_SYS( call, error ) if((call)==-1) { perror(error); exit(-1); }
 
 int main(int argc, const char** argv) {
   //TODO: timeout. Use constants.

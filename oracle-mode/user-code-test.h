@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+typedef unsigned long int uint64_t;
 
 void crash() {
     volatile int* p = 0;

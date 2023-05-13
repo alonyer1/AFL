@@ -6,9 +6,11 @@
 #define USER_FUNCTION func("abcdefg")
 #endif
 #include <stdbool.h>
-#include "oracle-run.h"
+//#include "../oracle-run.h"
 #include <unistd.h>
 #include <sched.h>
+#include "msr-utils2.h"
+
 typedef unsigned long int uint64_t;
 typedef unsigned int uint32_t;
 
@@ -19,11 +21,15 @@ typedef unsigned int uint32_t;
 #define REG_SIZE 64
 
 /* Efficient functions to use in measuring at the beginning and end. */
+
+//extern void btb_override();
+
 static inline uint64_t measure_start() {
     uint32_t cycles_low=0, cycles_high=0;
     asm volatile ("CPUID\n\t" "RDTSC\n\t" : "=a" (cycles_low), "=d"(cycles_high):: "%rbx", "memory");
     return (((uint64_t)cycles_high << 32) | cycles_low);
 }
+
 
 static inline uint64_t measure_end() {
     uint32_t cycles_low=0, cycles_high=0, aux=0;
@@ -69,6 +75,7 @@ void measure_loop(const char* output_path, int loop_n) {
     uint64_t log_result=0,time_measured=0;
     uint64_t measurement_cycles = measure_instance2(false);
     for(int i=0; i < loop_n; i++) {
+        prediction_wall();
         time_measured = measure_instance2(true);
         printf("%lx\n", time_measured);
         time_measured -= measurement_cycles;
@@ -83,8 +90,27 @@ void measure_loop(const char* output_path, int loop_n) {
     }
 
 }
+/*#define LOOP_COUNT 10000
+void btb_override() {
+    char number_str[32] = {'\0'};
+    for(int i=0; i < LOOP_COUNT; i++) {
+        sprintf(number_str, "%d", i);
+        bool random_boolean = rand() % 2;
+
+        asm volatile(
+            "test %0, 1\n" 
+            "je .direct_label_" __STRING(i) "\n"
+            "nop\n"
+            ".direct_label_" atoi(i) ":\n"
+            "jmp *indirect_label_" __STRING(i) "(%%rip)\n"
+            "nop\n"
+            "indirect_label_1" __STRING(i) ":\n"
+        : : "r" (random_boolean));
+    }
+}*/
 
 int main(int argc, const char** argv) {
+    //override_ibpb();
     if(argc!=3) printf("Correct usage: ./oracle <output-file> <iteration-count>\n");
     else measure_loop(argv[1], atoi(argv[2]));
 }
