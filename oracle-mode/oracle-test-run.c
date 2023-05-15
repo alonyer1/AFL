@@ -3,13 +3,14 @@
 
 #ifdef RUN_CODE
 #include "user-code-test.h"
-#define USER_FUNCTION func("abcdefg")
+#define USER_FUNCTION func
 #endif
 #include <stdbool.h>
 //#include "../oracle-run.h"
 #include <unistd.h>
 #include <sched.h>
 #include "msr-utils2.h"
+#include <string.h>
 
 typedef unsigned long int uint64_t;
 typedef unsigned int uint32_t;
@@ -43,7 +44,6 @@ static inline uint64_t log_2(uint64_t var) {
     asm ("BSRQ %1, %0" : "=r"(res) : "r"(var));
     return res;
 }
-#define LOG_2( var, res ) asm ("BSRQ %1, %0" : "=r"(res) : "r"(var) : "memory")
 
 /* Move process to isolated core. */
 static inline void set_core(int core_num) {
@@ -54,29 +54,68 @@ static inline void set_core(int core_num) {
 }
 
 /* Measure once. If argument is true, measure a function provided by macro.*/
-static inline uint64_t measure_instance2(bool with_code) {
+static inline uint64_t measure_instance2(bool with_code, char* arg) {
     uint64_t start=0, end=0;
     if(with_code) {
         start = measure_start();
-        USER_FUNCTION;
+        (USER_FUNCTION)(arg);
         end = measure_end();
     } else {
         start = measure_start();
         end = measure_end();
     }
-    //printf("Start:%lx\nEnd:%lx\n", start,end);
     return end-start;
+}
+void free_strlist(int length, char** list) {
+    for(int i=0; i<length; i++) free(list[i]);
+    free(list);
+}
+char** input_arr(const char* input_path, int* line_count) {
+    FILE* file;
+    char** list;
+    DO_SYS2(file, NULL, fopen(input_path, "r"), "Failed to open input file.")
+    char* line = NULL;
+    size_t len = 0;
+    ssize_t have_read=0;
+    // Count the number of lines in the file
+    *line_count = 0;
+    while ((have_read = getline(&line, &len, file)) != -1) {
+        (*line_count)++;
+    }
+    rewind(file);
+    // Allocate an array of string pointers
+    DO_SYS2(list, NULL, (char**)malloc(sizeof(char*) * (*line_count)), "Failed to allocate.")
+    // Read the file again, line by line
+    for(int i=0; ((have_read = getline(&line, &len, file)) != -1); i++) {
+        // Remove newline character, if present
+        if (line[have_read - 1] == '\n') {
+            line[have_read - 1] = '\0';
+            have_read--;
+        }
+
+        // Allocate memory for the line in the list
+        DO_SYS2(list[i], NULL, (char*)malloc(sizeof(char) * (have_read + 1)), "Failed to allocate.")
+        // Copy the line to the list
+        strcpy(list[i], line);
+    }
+    // Cleanup
+    free(line);
+    fclose(file);
+    return list;
 }
 
 
-void measure_loop(const char* output_path, int loop_n) {
+void measure_loop(const char* input_path, const char* output_path, int loop_n) {
     set_core(ISOLATED_CORE);
     long unsigned int histogram[REG_SIZE] = {0};
+    int num_inputs=0;
+    char** inputs = input_arr(input_path, &num_inputs);
     uint64_t log_result=0,time_measured=0;
-    uint64_t measurement_cycles = measure_instance2(false);
+    prediction_wall();
+    uint64_t measurement_cycles = measure_instance2(false, NULL);
     for(int i=0; i < loop_n; i++) {
         prediction_wall();
-        time_measured = measure_instance2(true);
+        time_measured = measure_instance2(true, inputs[0]);
         printf("%lx\n", time_measured);
         time_measured -= measurement_cycles;
         log_result = log_2(time_measured);
@@ -88,7 +127,7 @@ void measure_loop(const char* output_path, int loop_n) {
     for (int i = 0; i < REG_SIZE; i++) {
         fprintf(out_file, "%d: %lu\n", i, histogram[i]);
     }
-
+    free_strlist(num_inputs, inputs);
 }
 /*#define LOOP_COUNT 10000
 void btb_override() {
@@ -111,8 +150,8 @@ void btb_override() {
 
 int main(int argc, const char** argv) {
     //override_ibpb();
-    if(argc!=3) printf("Correct usage: ./oracle <output-file> <iteration-count>\n");
-    else measure_loop(argv[1], atoi(argv[2]));
+    if(argc !=4) printf("Correct usage: ./oracle <inputs-file> <output-file> <iteration-count>\n");
+    else measure_loop(argv[1], argv[2], atoi(argv[3]));
 }
 
 /* DRAFT:
