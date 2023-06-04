@@ -1,0 +1,10 @@
+Test program for input "fixed strint": 11 branches not taken (no misprediction), 1 branch taken (misprediction) and one ret (Misprediction?)
+Why does it say that branches happened at address 00000??
+Why are there so many addresses that are "negative" (Very large) and they say "unknown"?
+What does it mean when there are blue things?
+Why don't the percentages add up when I expand call chain?
+Why are dwall and the labels in dwall separate?
+Why does it say branch misses for "add" commands?
+Does it not know func? Does it thing func has another name?
+Why does it see branches in rdtsc?
+Maybe it is "intel_check_word"?

@@ -1,0 +1,10 @@
+# started on Sun May 21 12:34:05 2023
+
+
+ Performance counter stats for 'CPU(s) 3':
+
+        18,034,681      branches                                                    
+            37,529      branch-misses             #    0.21% of all branches        
+
+       0.016045271 seconds time elapsed
+

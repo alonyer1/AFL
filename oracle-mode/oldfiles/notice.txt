@@ -1,0 +1,1 @@
+Test program for input "fixed strint": 11 branches not taken (no misprediction), 1 branch taken (misprediction) and one ret (Misprediction?)
