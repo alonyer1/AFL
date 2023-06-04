@@ -3,7 +3,7 @@
 
 #ifdef RUN_CODE
 #include "user-code-test.h"
-#define USER_FUNCTION func3
+#define USER_FUNCTION func2
 #endif
 #include <stdbool.h>
 //#include "../oracle-run.h"
@@ -151,7 +151,7 @@ void measure_loop_no_histogram(const char* input_path, const char* output_path, 
     /* Outer loop. Performs measurement and stores the log in histogram. */
     for(int i=0; i < loop_n; i++) {
         //dwall();
-        time_measured = run_and_measure(true, inputs[i%num_inputs]);
+        time_measured = run_and_measure(true, inputs[0]);
         average_measurement_time+=time_measured;
         results[i] = time_measured;
     }
@@ -208,5 +208,5 @@ void measure_loop_cache_miss(const char* input_path, const char* output_path, in
 
 int main(int argc, const char** argv) {
     if(argc !=4) printf("Correct usage: ./oracle <inputs-file> <output-file> <iteration-count>\n");
-    else measure_loop_no_histogram(argv[1], argv[2], atoi(argv[3]));
+    else measure_loop_cache_miss(argv[1], argv[2], atoi(argv[3]));
 }
