@@ -186,6 +186,7 @@ void measure_loop_cache_miss(const char* input_path, const char* output_path, in
     }
     /* Outer loop. Performs measurement and stores the log in histogram. */
     for(int i=0; i < loop_n; i++) {
+        //dwall();
         for(int i=0; i<strlen(big_input); i+=64) {
             clflush(big_input+i);
         }
