@@ -11,11 +11,12 @@
 #include <sched.h>
 #include "msr-utils2.h"
 #include <string.h>
-#define USER_FUNCTION (func2)
+#define USER_FUNCTION (func3)
 
 extern void dwall();
 extern int func(char* input_str);
 extern int func2(char* input_str);
+extern int func3(char* input_str);
 typedef unsigned long int uint64_t;
 typedef unsigned int uint32_t;
 #define FIRST_ITERATIONS 100
@@ -24,7 +25,7 @@ typedef unsigned int uint32_t;
 #define ERR_AFFINITY "Error: cannot isolate core affinity."
 #define ISOLATED_CORE 3
 #define REG_SIZE 64
-#define CACHELINE_SIZE 64
+#define CACHELINE_SIZE 128
 #define STRLEN 12
 #define WRITE "w"
 /* Efficient functions to use in measuring at the beginning and end. */
@@ -225,7 +226,7 @@ void run_loop_cache(const char* input_path, const char* output_path, int loop_n)
     3. result is stored in the array.
     */
     for(int i=0; i < loop_n; i++) {
-        for(int j=0; j<STRLEN; j+=CACHELINE_SIZE) {
+        for(int j=0; j<STRLEN*CACHELINE_SIZE; j+=CACHELINE_SIZE) {
             clflush(big_input+j);
         }
         asm volatile("mfence" ::: "memory");

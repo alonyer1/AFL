@@ -43,7 +43,7 @@ def histogram(bucket_size, input_files):
     plt.show()
 
 if __name__ == "__main__":
-    input_files=["results/00.txt"]
-    for i in range(0,10,2):
-        input_files.append("results/"+str(i)+".txt")
+    input_files=["results/cache-00.txt"]
+    for i in range(1,12,2):
+        input_files.append("results/cache-"+str(i)+".txt")
     histogram(1, input_files)
