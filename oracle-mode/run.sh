@@ -3,6 +3,7 @@ nums=("00" "0" "1" "2" "3" "4" "5" "6" "7" "8" "9" "10" "11")
 for i in ${nums[@]}; do
     #perf record -o perfresults/perf-nocpuid-$i.data --exclude-perf -e branch-misses:u,branches:u -- ./oracle inputs/in$i.txt results/nocpuid-$i.txt 100000
     ./oracle inputs/in$i.txt results/cache-$i.txt 100000
+    echo "File $i done"
 done
 
 #perf record -o perfresults/perf-cache.data -g --freq=max -e cache-misses,branches -- ./oracle inputs/in10.txt results/outtmp.txt 100000

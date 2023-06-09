@@ -18,16 +18,16 @@ def histogram(bucket_size, input_files):
             max_value = max(max_value, max(numbers))
 
     # Compute the bucket edges (these are shared across all histograms)
-    bins = np.arange(min_value, 200, bucket_size)
+    bins = np.arange(min_value, 500, bucket_size)
     #bins = np.append(bins, max_value)  # Make sure the max value falls within the last bin
     fig, ax1 = plt.subplots()
     print("Buckets arranged.\n")
     # Plot the histograms
     colors = ['red', 'yellow', 'blue', 'purple']
-    ax1.hist(data,bins, log=True, label=[f'String difference at location {i*5}' for i in range(len(data))])
-    '''for i, numbers in data.items():
-        ax1.hist(numbers, bins, alpha=.7, color=colors[i], edgecolor='black', label=f'String difference at location {i*5}')
-        print("Buckets arranged.\n")'''
+    #ax1.hist(data,bins, label=[f'String difference at location {i*5}' for i in range(len(data))])
+    for i in range(len(data)):
+        ax1.hist(data[i], bins, alpha=0.5, label=f'String difference at location {i}')
+        print("Buckets arranged.\n")
     ax2 = ax1.twinx()
     ax2.set_ylabel("% of all calls to 'func'",fontsize=18)
     #ax2.tick_params(axis='y')
@@ -43,7 +43,7 @@ def histogram(bucket_size, input_files):
     plt.show()
 
 if __name__ == "__main__":
-    input_files=["results/cache-00.txt"]
-    for i in range(4,12,5):
-        input_files.append("results/cache-"+str(i)+".txt")
+    input_files=["results/00.txt"]
+    for i in range(0,10,2):
+        input_files.append("results/"+str(i)+".txt")
     histogram(1, input_files)

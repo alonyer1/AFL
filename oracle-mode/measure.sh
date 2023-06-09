@@ -4,4 +4,5 @@ for ((cpu=0; cpu<8; cpu++)); do
 done
 echo '77' | sudo tee /proc/irq/default_smp_affinity
 echo '-1' | sudo tee /proc/sys/kernel/perf_event_paranoid
+echo '0'  | sudo tee /proc/sys/kernel/randomize_va_space
 grep 'cpu MHz' /proc/cpuinfo
