@@ -1,13 +1,19 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import argparse
 
-def histogram(bucket_size, input_files):
+dic = {"0": "00"}
+for i in range(1,13):
+    dic[str(i)] = str(i-1)
+
+def histogram(bucket_size, prefix, input_files):
     data = []  # This will hold the data read from each file
     data2 = []
     min_value = float('inf')
     max_value = float('-inf')
     
-    for i, file in enumerate(input_files):
+    for i in input_files:
+        file = prefix + dic[str(i)] + ".txt"
         with open(file, 'r') as f:
             print("file",i,"loaded.\n")
             numbers = list(map(float, f.readlines()[1:]))  # Read numbers, starting from second line
@@ -26,7 +32,7 @@ def histogram(bucket_size, input_files):
     colors = ['red', 'yellow', 'blue', 'purple']
     #ax1.hist(data,bins, label=[f'String difference at location {i*5}' for i in range(len(data))])
     for i in range(len(data)):
-        ax1.hist(data[i], bins, alpha=0.5, label=f'String difference at location {i}')
+        ax1.hist(data[i], bins, alpha=0.5, label=f'String difference at location {input_files[i]}')
         print("Buckets arranged.\n")
     ax2 = ax1.twinx()
     ax2.set_ylabel("% of all calls to 'func'",fontsize=18)
@@ -43,7 +49,6 @@ def histogram(bucket_size, input_files):
     plt.show()
 
 if __name__ == "__main__":
-    input_files=["results/cache-00.txt"]
-    for i in range(1,12,2):
-        input_files.append("results/cache-"+str(i)+".txt")
-    histogram(1, input_files)
+    prefix = "results/"
+    input_files= list(range(0,13,2))
+    histogram(1, prefix, input_files)
