@@ -2,7 +2,7 @@ inputs=("in0.txt" "in1.txt" "in2.txt" "in3.txt" "in4.txt" "in5.txt" "in6.txt" "i
 nums=("00" "0" "1" "2" "3" "4" "5" "6" "7" "8" "9" "10" "11")
 for i in ${nums[@]}; do
     #perf record -o perfresults/perf-$i.data --exclude-perf -e branch-misses:u,branches:u -- ./oracle inputs/in$i.txt results/nocpuid-$i.txt 100000
-    ./oracle inputs/in$i.txt results/cache3-$i.txt 100000
+    sudo ./oracle inputs/in$i.txt results/cache3-$i.txt 100000
     echo "File $i done"
 done
 

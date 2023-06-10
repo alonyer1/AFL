@@ -11,13 +11,13 @@
 #include <sched.h>
 #include "msr-utils2.h"
 #include <string.h>
-#define USER_FUNCTION (func3)
+#define USER_FUNCTION (func2)
 
 /* External functions. */
 extern void dwall();
-extern int func(char* input_str);
-extern int func2(char* input_str);
-extern int func3(char* input_str);
+extern int func(char *input_str);
+extern int func2(char *input_str);
+extern int func3(char *input_str);
 typedef unsigned long int uint64_t;
 typedef unsigned int uint32_t;
 #define FIRST_ITERATIONS (100)
@@ -39,26 +39,30 @@ typedef unsigned int uint32_t;
 
 int line_index[STRLEN] = {0, 1, 3, 6, 7, 10, 14, 20, 22, 28, 31, 47};
 #define CACHESIZE 4096
-#define BIGLEN 48*CACHELINE_SIZE+CACHESIZE*STRLEN
+#define BIGLEN (STRLEN *CACHELINE_SIZE)
 
 static inline uint64_t measure_start()
 {
     uint32_t cycles_low = 0, cycles_high = 0;
-    asm volatile("CPUID\n\t" "RDTSC\n\t" : "=a"(cycles_low), "=d"(cycles_high)::"%rbx", "memory");
+    asm volatile("CPUID\n\t"
+                 "RDTSC\n\t"
+                 : "=a"(cycles_low), "=d"(cycles_high)::"%rbx", "memory");
     return (((uint64_t)cycles_high << 32) | cycles_low);
 }
 
 static inline uint64_t measure_end()
 {
     uint32_t cycles_low = 0, cycles_high = 0, aux = 0;
-    asm volatile("RDTSCP\n\t" : "=a"(cycles_low), "=d"(cycles_high), "=c"(aux)::"%rbx", "memory");
+    asm volatile("RDTSCP\n\t"
+                 : "=a"(cycles_low), "=d"(cycles_high), "=c"(aux)::"%rbx", "memory");
     return (((uint64_t)cycles_high << 32) | cycles_low);
 }
 
 inline uint64_t dan_get_cycles()
 {
     unsigned int a, d;
-    asm volatile("rdtsc" : "=a"(a), "=d"(d) :: "memory");
+    asm volatile("rdtsc"
+                 : "=a"(a), "=d"(d)::"memory");
     return (((unsigned long)a) | (((unsigned long)d) << 32));
 }
 
@@ -66,7 +70,9 @@ inline uint64_t dan_get_cycles()
 static inline uint64_t log_2(uint64_t var)
 {
     uint64_t res = 0;
-    asm("BSRQ %1, %0" : "=r"(res) : "r"(var));
+    asm("BSRQ %1, %0"
+        : "=r"(res)
+        : "r"(var));
     return res;
 }
 
@@ -80,28 +86,28 @@ static inline void set_core(int core_num)
 }
 
 /* Measure code once. If argument is true, measure a function provided by macro.*/
-static inline uint64_t run_and_measure(char* arg)
+static inline uint64_t run_and_measure(char *arg)
 {
     uint64_t start = measure_start();
     USER_FUNCTION(arg);
     uint64_t end = measure_end();
     return end - start;
 }
-void free_list(int length, char** list)
+void free_list(int length, char **list)
 {
     for (int i = 0; i < length; i++)
         free(list[i]);
     free(list);
 }
-char** get_lines(const char* input_file_path, int* line_count)
+char **get_lines(const char *input_file_path, int *line_count)
 {
-    FILE* file = fopen(input_file_path, "r");
+    FILE *file = fopen(input_file_path, "r");
     if (file == NULL)
     {
         perror("Failed to open input file.\n");
         exit(-1);
     }
-    char* line = NULL;
+    char *line = NULL;
     size_t len = 0;
     ssize_t have_read = 0;
     // Count the number of lines in the file
@@ -112,7 +118,7 @@ char** get_lines(const char* input_file_path, int* line_count)
     }
     rewind(file);
     // Allocate an array of string pointers
-    char** list = (char** )valloc(sizeof(char*) * (*line_count));
+    char **list = (char **)valloc(sizeof(char *) * (*line_count));
     if (list == NULL)
     {
         perror("Failed to allocated.\n");
@@ -130,7 +136,7 @@ char** get_lines(const char* input_file_path, int* line_count)
         }
 
         // Allocate memory for the line in the list
-        list[i] = (char*)valloc(have_read + 1);
+        list[i] = (char *)valloc(have_read + 1);
         if (list[i] == NULL)
         {
             perror("Failed to allocated.\n");
@@ -146,14 +152,14 @@ char** get_lines(const char* input_file_path, int* line_count)
 }
 
 /* Perform a loop of measurements. */
-void run_loop_histogram(const char* input_file_path, const char* output_file_path, int loop_n)
+void run_loop_histogram(const char *input_file_path, const char *output_file_path, int loop_n)
 {
     // Isolate core.
     set_core(ISOLATED_CORE);
     long unsigned int histogram[REG_SIZE] = {0};
     // Create an array of inputs from file, every line corresponds to different input.
     int num_inputs = 0;
-    char** input_file_lines = get_lines(input_file_path, &num_inputs);
+    char **input_file_lines = get_lines(input_file_path, &num_inputs);
     /* loop_n iterations:
     1. "dwall" resets the branch predictors.
     2. run_and_measure measures func from start to finish.
@@ -183,7 +189,7 @@ void run_loop_histogram(const char* input_file_path, const char* output_file_pat
     fclose(out_file);
     free_list(num_inputs, input_file_lines);
 }
-void run_loop(const char* input_file_path, const char* output_file_path, int loop_n)
+void run_loop(const char *input_file_path, const char *output_file_path, int loop_n)
 {
     // Isolate core.
     set_core(ISOLATED_CORE);
@@ -195,7 +201,7 @@ void run_loop(const char* input_file_path, const char* output_file_path, int loo
     }
     // Create an array of inputs from file. We only use the first line on a file, input_file_lines[0].
     int num_inputs = 0;
-    char** input_file_lines = get_lines(input_file_path, &num_inputs);
+    char **input_file_lines = get_lines(input_file_path, &num_inputs);
     uint64_t cycles_measured = 0;
     uint64_t average_cycles = 0;
     /* loop_n iterations:
@@ -230,13 +236,17 @@ void run_loop(const char* input_file_path, const char* output_file_path, int loo
 
 inline void clflush(volatile void *address)
 {
-    asm volatile("clflush (%0)\n\t" :: "r"(address) : "memory");
+    asm volatile("clflush (%0)\n\t" ::"r"(address)
+                 : "memory");
 }
 
-void run_loop_cache(const char* input_file_path, const char* output_file_path, int loop_n)
+void run_loop_cache(const char *input_file_path, const char *output_file_path, int loop_n)
 {
     // Isolate core.
     set_core(ISOLATED_CORE);
+    // Disable cache prefetching.
+    disable_prefetching();
+
     uint64_t *results = (uint64_t *)valloc(loop_n * sizeof(uint64_t));
     if (results == NULL)
     {
@@ -247,10 +257,10 @@ void run_loop_cache(const char* input_file_path, const char* output_file_path, i
     // Create an array of inputs from file. We only use the first line on a file, input_file_lines[0].
     // We use that line to create "big_input" a string where ever cache line represents one char from input_file_lines[0].
     int num_inputs = 0;
-    char** input_file_lines = get_lines(input_file_path, &num_inputs);
+    char **input_file_lines = get_lines(input_file_path, &num_inputs);
     uint64_t cycles_measured = 0;
     uint64_t average_cycles = 0;
-    char* big_input = (char*)valloc(BIGLEN);
+    char *big_input = (char *)valloc(BIGLEN);
     if (!big_input)
     {
         perror("Failed to allocate.\n");
@@ -260,7 +270,7 @@ void run_loop_cache(const char* input_file_path, const char* output_file_path, i
         big_input[i] = 'a';
     for (int i = 0; i < STRLEN; i++)
     {
-        big_input[line_index[i] * CACHELINE_SIZE + i*CACHESIZE] = input_file_lines[0][i];
+        big_input[i * CACHELINE_SIZE] = input_file_lines[0][i];
     }
     /* loop_n iterations:
     1. flush the cache lines.
@@ -269,8 +279,10 @@ void run_loop_cache(const char* input_file_path, const char* output_file_path, i
     */
     for (int i = 0; i < loop_n; i++)
     {
-        for (int j = 0; j < STRLEN; j ++) clflush(big_input + line_index[j]*CACHELINE_SIZE+j*CACHESIZE);
-        asm volatile("mfence" ::: "memory");
+        for (int j = 0; j < STRLEN; j++)
+            clflush(big_input + (j * CACHELINE_SIZE));
+        asm volatile("mfence" ::
+                         : "memory");
         cycles_measured = run_and_measure(big_input);
         average_cycles += cycles_measured;
         results[i] = cycles_measured;
@@ -295,7 +307,7 @@ void run_loop_cache(const char* input_file_path, const char* output_file_path, i
     free(results);
 }
 
-int main(int argc, const char** argv)
+int main(int argc, const char **argv)
 {
     if (argc != 4)
         printf("Correct usage: ./oracle <inputs-file> <output-file> <iteration-count>\n");
