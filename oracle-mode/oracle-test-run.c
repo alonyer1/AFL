@@ -11,7 +11,7 @@
 #include <sched.h>
 #include "msr-utils2.h"
 #include <string.h>
-#define USER_FUNCTION (func)
+#define USER_FUNCTION (func3)
 
 /* External functions. */
 extern void dwall();
@@ -36,6 +36,10 @@ typedef unsigned int uint32_t;
 /* Efficient functions to use in measuring at the beginning and end. */
 
 // extern void btb_override();
+
+int line_index[STRLEN] = {0, 1, 3, 6, 7, 10, 14, 20, 22, 28, 31, 47};
+#define CACHESIZE 4096
+#define BIGLEN 48*CACHELINE_SIZE+CACHESIZE*STRLEN
 
 static inline uint64_t measure_start()
 {
@@ -246,19 +250,18 @@ void run_loop_cache(const char* input_file_path, const char* output_file_path, i
     char** input_file_lines = get_lines(input_file_path, &num_inputs);
     uint64_t cycles_measured = 0;
     uint64_t average_cycles = 0;
-    char* big_input = (char*)valloc(STRLEN * CACHELINE_SIZE);
+    char* big_input = (char*)valloc(BIGLEN);
     if (!big_input)
     {
         perror("Failed to allocate.\n");
         exit(-1);
     }
-    for (int i = 0; i < STRLEN * CACHELINE_SIZE; i++)
+    for (int i = 0; i < BIGLEN; i++)
         big_input[i] = 'a';
     for (int i = 0; i < STRLEN; i++)
     {
-        big_input[i * CACHELINE_SIZE] = input_file_lines[0][i];
+        big_input[line_index[i] * CACHELINE_SIZE + i*CACHESIZE] = input_file_lines[0][i];
     }
-
     /* loop_n iterations:
     1. flush the cache lines.
     2. run_and_measure calls func2 and measures cycles from start to finish.
@@ -266,7 +269,7 @@ void run_loop_cache(const char* input_file_path, const char* output_file_path, i
     */
     for (int i = 0; i < loop_n; i++)
     {
-        for (int j = 0; j < STRLEN * CACHELINE_SIZE; j += CACHELINE_SIZE) clflush(big_input + j);
+        for (int j = 0; j < STRLEN; j ++) clflush(big_input + line_index[j]*CACHELINE_SIZE+j*CACHESIZE);
         asm volatile("mfence" ::: "memory");
         cycles_measured = run_and_measure(big_input);
         average_cycles += cycles_measured;
@@ -297,5 +300,5 @@ int main(int argc, const char** argv)
     if (argc != 4)
         printf("Correct usage: ./oracle <inputs-file> <output-file> <iteration-count>\n");
     else
-        run_loop(argv[1], argv[2], atoi(argv[3]));
+        run_loop_cache(argv[1], argv[2], atoi(argv[3]));
 }

@@ -49,6 +49,6 @@ def histogram(bucket_size, prefix, input_files):
     plt.show()
 
 if __name__ == "__main__":
-    prefix = "results/"
+    prefix = "results/cache3-"
     input_files= list(range(0,13,2))
     histogram(1, prefix, input_files)
