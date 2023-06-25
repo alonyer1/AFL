@@ -1,4 +1,4 @@
-.global func, func2, func3
+.global func, func2, func3, func4
 .section .text
 
 func:
@@ -129,5 +129,38 @@ movzbl %al,%eax
 neg    %eax
 ret
 func3_bad:
+mov    $0xffffffff,%eax
+ret
+
+func4:
+endbr64
+cmpb   $0x66,(%rdi)
+jne    func2_bad
+cmpb   $0x69,0x200(%rdi)
+jne    func2_bad
+cmpb   $0x78,0x400(%rdi)
+jne    func2_bad
+cmpb   $0x65,0x800(%rdi)
+jne    func2_bad
+cmpb   $0x64,0xa00(%rdi)
+jne    func2_bad
+cmpb   $0x20,0xc00(%rdi)
+jne    func2_bad
+cmpb   $0x73,0xe00(%rdi)
+jne    func2_bad
+cmpb   $0x74,0x1000(%rdi)
+jne    func2_bad
+cmpb   $0x72,0x1200(%rdi)
+jne    func2_bad
+cmpb   $0x69,0x1400(%rdi)
+jne    func2_bad
+cmpb   $0x6e,0x1600(%rdi)
+jne    func2_bad
+cmpb   $0x67,0x1800(%rdi)
+setne  %al
+movzbl %al,%eax
+neg    %eax
+ret
+func4_bad:
 mov    $0xffffffff,%eax
 ret

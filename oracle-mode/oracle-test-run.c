@@ -11,13 +11,14 @@
 #include <sched.h>
 #include "msr-utils2.h"
 #include <string.h>
-#define USER_FUNCTION (func2)
+#define USER_FUNCTION (func4)
 
 /* External functions. */
 extern void dwall();
 extern int func(char *input_str);
 extern int func2(char *input_str);
 extern int func3(char *input_str);
+extern int func4(char *input_str);
 typedef unsigned long int uint64_t;
 typedef unsigned int uint32_t;
 #define FIRST_ITERATIONS (100)
@@ -30,9 +31,10 @@ typedef unsigned int uint32_t;
 #define ERR_AFFINITY "Error: cannot isolate core affinity."
 #define ISOLATED_CORE (3)
 #define REG_SIZE (64)
-#define CACHELINE_SIZE (64)
+#define CACHELINE_SIZE (512)
 #define STRLEN (12)
 #define WRITE ("w")
+#define ARR_SIZE 256
 /* Efficient functions to use in measuring at the beginning and end. */
 
 // extern void btb_override();
@@ -307,10 +309,100 @@ void run_loop_cache(const char *input_file_path, const char *output_file_path, i
     free(results);
 }
 
+int prime(uint8_t* array) {
+	int i, junk = 0;
+    asm volatile ("mfence\t\n"
+				"lfence\t\n" ::: "memory");
+	for (i = 0; i < ARR_SIZE; i++)
+		junk += array[i * CACHELINE_SIZE];
+    asm volatile ("mfence\t\n"
+				"lfence\t\n" ::: "memory");
+	return junk;
+}
+
+unsigned long probe_one(volatile uint8_t* adrs) {
+	volatile unsigned long time;
+	asm volatile ("mfence\t\n"
+				"lfence\t\n"
+				"rdtsc\t\n"
+				"lfence\t\n"
+				"movl %%eax, %%esi\t\n"
+				"movl (%1), %%eax\t\n"
+				"lfence\t\n"
+				"rdtsc\t\n"
+				"subl %%esi, %%eax\t\n"
+				"clflush 0(%1)\t\n"
+				: "=a"(time)
+				: "c"(adrs)
+				: "%esi", "%edx", "memory");
+	return time;
+}
+
+void probe(uint8_t* array, uint64_t * results) {
+	int i, mix_i;
+	volatile uint8_t *addr;
+	for(i=0; i<ARR_SIZE; i++) {
+		mix_i = ((i * 167) + 13) % ARR_SIZE;
+        //printf("mix_i:%d\n", mix_i);
+		addr = array + (mix_i*CACHELINE_SIZE);
+		results[mix_i] = probe_one(addr);
+	}
+}
+
+void run_prime_probe(const char *input_file_path, const char *output_file_path)
+{
+    // Isolate core.
+    set_core(ISOLATED_CORE);
+    // Disable cache prefetching.
+    //disable_prefetching();
+    int num_inputs = 0;
+    char **input_file_lines = get_lines(input_file_path, &num_inputs);
+
+    char *big_input = (char *)valloc(ARR_SIZE * CACHELINE_SIZE);
+    if (!big_input)
+    {
+        perror("Failed to allocate.\n");
+        exit(-1);
+    }
+    uint64_t *results = (uint64_t *)valloc(sizeof(uint64_t) * ARR_SIZE);
+    if (results == NULL)
+    {
+        perror("Failed to allocate.\n");
+        exit(-1);
+    }
+    for (int i = 0; i < BIGLEN; i++)
+        big_input[i] = 'a';
+    for (int i = 0; i < STRLEN; i++)
+    {
+        big_input[i * CACHELINE_SIZE] = input_file_lines[0][i];
+    }
+    for (int j = 0; j < ARR_SIZE; j++) clflush(big_input + (j * CACHELINE_SIZE));
+    //prime(big_input);
+    USER_FUNCTION(big_input);
+    probe(big_input, results);
+    FILE *out_file;
+    out_file = fopen(output_file_path, WRITE);
+    if (out_file == NULL)
+    {
+        perror("Cannot open file.\n");
+        exit(-1);
+    }
+    for (int i = 0; i < ARR_SIZE; i++)
+    {
+        fprintf(out_file, "%lu\n", results[i]);
+    }
+    // Free structures.
+    fclose(out_file);
+    free_list(num_inputs, input_file_lines);
+    free(big_input);
+    free(results);
+}
+
 int main(int argc, const char **argv)
 {
     if (argc != 4)
         printf("Correct usage: ./oracle <inputs-file> <output-file> <iteration-count>\n");
     else
-        run_loop_cache(argv[1], argv[2], atoi(argv[3]));
+        //run_loop_cache(argv[1], argv[2], atoi(argv[3]));
+        run_prime_probe(argv[1], argv[2]);
 }
