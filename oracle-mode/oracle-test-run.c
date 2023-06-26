@@ -370,7 +370,7 @@ void run_prime_probe(const char *input_file_path, const char *output_file_path)
         perror("Failed to allocate.\n");
         exit(-1);
     }
-    for (int i = 0; i < BIGLEN; i++)
+    for (int i = 0; i < ARR_SIZE * CACHELINE_SIZE; i++)
         big_input[i] = 'a';
     for (int i = 0; i < STRLEN; i++)
     {
